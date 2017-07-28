@@ -1,0 +1,33 @@
+#!/bin/bash
+
+url="https://pastebin.com/api/api_post.php"
+key="<INSERT API KEY HERE>"
+
+if [ -z "$key" ]
+then
+    echo "Key is empty, please insert API key inside script. Exiting now."
+    exit
+elif [ ! -z "$1" ]
+then
+    if [ -f $1 ]
+    then
+        paste=$(cat $1)
+    else
+        echo "File does not exist. Exiting now."
+        exit
+    fi
+else
+    echo "Press Ctrl+D to exit from text input."
+    paste=$(cat)
+
+    if [ -z "$paste" ]
+    then
+        echo "Paste is empty, please input a paste. Exiting now."
+        exit
+    fi
+fi
+
+response=$(curl -s -F api_option=paste -F api_dev_key=$key -F api_paste_code="$paste" -F api_paste_private=1 $url)
+
+printf "\nPastebin URL: %s" "$response"
+printf "\nRaw data URL: https://pastebin.com/raw/%s\n" "$(echo $response | cut -d "/" -f 4)"
