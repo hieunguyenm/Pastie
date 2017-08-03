@@ -1,33 +1,70 @@
 #!/bin/bash
 
-url="https://pastebin.com/api/api_post.php"
-key="<INSERT API KEY HERE>"
+PASTEBIN_URL="https://pastebin.com/api/api_post.php"
+PASTEBIN_KEY="<INSERT API KEY HERE>"
 
-if [ -z "$key" ]
-then
-    echo "Key is empty, please insert API key inside script. Exiting now."
-    exit
-elif [ ! -z "$1" ]
-then
-    if [ -f $1 ]
+FEDORA_PASTE_URL="https://paste.fedoraproject.org/api/paste/submit"
+# Fedora Pastebin API key is optional
+FEDORA_PASTE_KEY=""
+
+option=$1
+file=$2
+
+paste_in() {
+    if [ ! -z "$1" ]
     then
-        paste=$(cat $1)
+        filepath=$(realpath $1)
+        if [ -f $filepath ]
+        then
+            paste=$(cat $1)
+        else
+            echo "File does not exist. Exiting now."
+            exit
+        fi
     else
-        echo "File does not exist. Exiting now."
-        exit
-    fi
-else
-    echo "Press Ctrl+D to exit from text input."
-    paste=$(cat)
+        echo "Press Ctrl+D to exit from text input."
+        paste=$(cat)
 
-    if [ -z "$paste" ]
+        if [ -z "$paste" ]
+        then
+            echo "Paste is empty, please input a paste. Exiting now."
+            exit
+        fi
+    fi
+}
+
+if [ ! -z "$option" ] && [ "$option" == "p" ]
+then
+    if [ -z "$PASTEBIN_KEY" ]
     then
-        echo "Paste is empty, please input a paste. Exiting now."
+        echo "Key is empty, please insert API key inside script. Exiting now."
         exit
+    else
+        paste_in $file
     fi
+
+    response=$(curl -s -F api_option=paste -F api_dev_key="$PASTEBIN_KEY" -F api_paste_code="$paste" -F api_paste_private=1 $PASTEBIN_URL)
+
+    printf "\n\nPastebin URL: %s" "$response"
+    printf "\nRaw data URL: https://pastebin.com/raw/%s\n" "$(echo $response | cut -d "/" -f 4)"
+elif [ ! -z "$1" ] && [ "$1" == "f" ]
+then
+    paste_in $file
+    export paste
+
+    if [ -z $FEDORA_PASTE_KEY ]
+    then
+        json_paste=$(python -c 'import os; import json; data = os.environ["paste"]; json_data = json.dumps({"contents":data}); print json_data')
+        response_url=$(curl -s -H "Content-Type: application/json" -X POST -d "$json_paste" $FEDORA_PASTE_URL | sed -n 11p | cut -d "\"" -f 4)
+    else
+        export FEDORA_PASTE_KEY
+        json_paste=$(python -c 'import os; import json; data = os.environ["paste"]; key = os.environ["FEDORA_PASTE_KEY"]; json_data = json.dumps({"contents":data,"api_key":key}); print json_data')
+        response_url=$(curl -s -H "Content-Type: application/json" -X POST -d "$json_paste" $FEDORA_PASTE_URL | sed -n 11p | cut -d "\"" -f 4)
+    fi
+
+    printf "\n\nFedora Pastebin URL: %s" "$response_url"
+    printf "\nRaw data URL: %s/raw\n" "$response_url"
+else
+    echo "No upload destination specified. Exiting now."
+    exit
 fi
-
-response=$(curl -s -F api_option=paste -F api_dev_key=$key -F api_paste_code="$paste" -F api_paste_private=1 $url)
-
-printf "\nPastebin URL: %s" "$response"
-printf "\nRaw data URL: https://pastebin.com/raw/%s\n" "$(echo $response | cut -d "/" -f 4)"
